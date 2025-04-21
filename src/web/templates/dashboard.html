@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Dogecoin Mining Control</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="poolUrl" class="form-label">Mining Pool URL</label>
+                    <input type="text" class="form-control" id="poolUrl" value="stratum+tcp://pool.systm.org:22550">
+                    <small class="text-muted">Default: pool.systm.org:22550 (Dogecoin Pool)</small>
+                </div>
+                <div class="mb-3">
+                    <label for="walletAddress" class="form-label">Dogecoin Wallet Address</label>
+                    <input type="text" class="form-control" id="walletAddress" placeholder="D...">
+                    <small class="text-muted">Enter your Dogecoin (DOGE) wallet address</small>
+                </div>
+                <div class="mb-3">
+                    <label for="threads" class="form-label">Mining Threads</label>
+                    <select class="form-control" id="threads">
+                        <option value="1">1 (Low Power)</option>
+                        <option value="2" selected>2 (Recommended)</option>
+                        <option value="3">3 (High Performance)</option>
+                    </select>
+                </div>
+                <button id="startMining" class="btn btn-success">Start Mining DOGE</button>
+                <button id="stopMining" class="btn btn-danger">Stop Mining</button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>System Monitor</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <h6>CPU Usage</h6>
+                        <div id="cpuUsage">0%</div>
+                    </div>
+                    <div class="col-6">
+                        <h6>Memory Usage</h6>
+                        <div id="memoryUsage">0%</div>
+                    </div>
+                    <div class="col-6 mt-3">
+                        <h6>Temperature</h6>
+                        <div id="temperature">0°C</div>
+                    </div>
+                    <div class="col-6 mt-3">
+                        <h6>Hash Rate</h6>
+                        <div id="hashRate">0 MH/s</div>
+                    </div>
+                    <div class="col-12 mt-3">
+                        <h6>Shares Found</h6>
+                        <div id="sharesFound">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5>Mining Status</h5>
+            </div>
+            <div class="card-body">
+                <p>Coin: <strong>Dogecoin (DOGE)</strong></p>
+                <p>Algorithm: <strong>Scrypt</strong></p>
+                <p>Status: <span id="miningStatus" class="badge bg-secondary">Stopped</span></p>
+                <p>Uptime: <span id="uptime">0m 0s</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let startTime = null;
+
+function updateUptime() {
+    if (startTime) {
+        const now = new Date();
+        const diff = Math.floor((now - startTime) / 1000);
+        const minutes = Math.floor(diff / 60);
+        const seconds = diff % 60;
+        document.getElementById('uptime').textContent = `${minutes}m ${seconds}s`;
+    }
+}
+
+function updateStats() {
+    fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('cpuUsage').textContent = data.system.cpu_usage + '%';
+            document.getElementById('memoryUsage').textContent = data.system.memory_usage + '%';
+            document.getElementById('temperature').textContent = data.system.temperature + '°C';
+            document.getElementById('hashRate').textContent = data.mining.hashrate + ' MH/s';
+            document.getElementById('sharesFound').textContent = data.mining.shares_found;
+            
+            const statusBadge = document.getElementById('miningStatus');
+            if (data.mining.is_mining) {
+                statusBadge.textContent = 'Mining';
+                statusBadge.className = 'badge bg-success';
+                if (!startTime) {
+                    startTime = new Date();
+                }
+            } else {
+                statusBadge.textContent = 'Stopped';
+                statusBadge.className = 'badge bg-secondary';
+                startTime = null;
+            }
+        });
+}
+
+document.getElementById('startMining').addEventListener('click', () => {
+    const config = {
+        pool_url: document.getElementById('poolUrl').value,
+        wallet_address: document.getElementById('walletAddress').value,
+        threads: document.getElementById('threads').value
+    };
+    
+    if (!config.wallet_address) {
+        alert('Please enter your Dogecoin wallet address');
+        return;
+    }
+    
+    fetch('/api/start', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'error') {
+            alert(data.message);
+        } else {
+            startTime = new Date();
+        }
+    });
+});
+
+document.getElementById('stopMining').addEventListener('click', () => {
+    fetch('/api/stop', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'error') {
+            alert(data.message);
+        } else {
+            startTime = null;
+        }
+    });
+});
+
+setInterval(updateStats, 5000);
+setInterval(updateUptime, 1000);
+updateStats();
+</script>
+{% endblock %}
