@@ -2,7 +2,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
-
+# test
 class User(UserMixin):
     def __init__(self, username):
         self.username = username
